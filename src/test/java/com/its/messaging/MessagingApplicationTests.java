@@ -36,9 +36,16 @@ public class MessagingApplicationTests {
 	}
 
 	@Test
-	public void shouldGetOkStatusForSend() {
+	public void shouldGetOkStatusForSendSMS() {
 		client.post().uri("/send/sms")
+				.exchange()
+				.expectStatus()
+				.isOk();
+	}
 
+	@Test
+	public void shouldGetOkStatusForSendEMail() {
+		client.post().uri("/send/email")
 				.exchange()
 				.expectStatus()
 				.isOk();
