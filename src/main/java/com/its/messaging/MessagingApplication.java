@@ -1,8 +1,6 @@
 package com.its.messaging;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.ToString;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -23,6 +21,7 @@ import reactor.core.publisher.Flux;
 import java.util.function.Consumer;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
+import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
 @SpringBootApplication
 public class MessagingApplication {
@@ -50,16 +49,19 @@ class WebConfiguration {
     @Bean
     public RouterFunction<?> routes(MailService mailService, SmsService smsService) {
         return RouterFunctions
-                .route(POST("/send/email"), serverRequest -> {
-                    serverRequest.bodyToMono(MailMessage.class).subscribe(mailService);
-                    return ServerResponse.ok().build();
-                })
-                .andRoute(POST("/send/sms"), serverRequest -> {
-                    serverRequest.bodyToFlux(SMS.class).subscribe(smsService);
-                    return ServerResponse.ok().build();
-                })
-                .andRoute(POST("/send/*"), serverRequest ->
-                        ServerResponse.badRequest().build());
+                .nest(POST("/send"),
+                        route(POST("/email"), serverRequest -> {
+                            serverRequest.bodyToFlux(MailMessage.class)
+                                    .subscribe(mailService);
+                                return ServerResponse.ok().build();
+                                })
+                                .andRoute(POST("/sms"), serverRequest -> {
+                                    serverRequest.bodyToMono(SMS.class)
+                                            .subscribe(smsService);
+                                    return ServerResponse.ok().build();
+                                })
+                                .andRoute(POST("/*"), serverRequest ->
+                                        ServerResponse.badRequest().build()));
     }
 }
 
@@ -98,6 +100,9 @@ interface Message {
 @ToString
 @Data
 @Document
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 class MailMessage implements Message {
     private String sender;
     private String recipient;
@@ -109,6 +114,9 @@ class MailMessage implements Message {
 @ToString
 @Data
 @Document
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 class SMS implements Message {
     private String sender;
     private String recipient;

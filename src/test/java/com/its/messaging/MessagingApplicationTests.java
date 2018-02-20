@@ -13,6 +13,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest
 public class MessagingApplicationTests {
 
+	public static final SMS SMS = com.its.messaging.SMS.builder().sender("+11 222 333 444").recipient("+99 888 777 666").message("A message").build();
+	public static final MailMessage MAIL_MESSAGE = MailMessage.builder().sender("sender@domain.com").recipient("recipient@other.domain.com")
+            .body("Hello my friend")
+            .subject("Greetings").build();
 	@Autowired
 	ApplicationContext applicationContext;
 
@@ -57,6 +61,42 @@ public class MessagingApplicationTests {
 				.exchange()
 				.expectStatus()
 				.isBadRequest();
+	}
+
+	@Test
+	public void listingSentSmsShouldReturnSms() {
+		client.post().uri("/send/sms")
+				.syncBody(SMS)
+				.exchange()
+				.expectStatus()
+				.isOk();
+		client.get().uri("/list/")
+				.exchange()
+				.expectBodyList(SMS.class)
+				.contains(
+						SMS
+				);
+	}
+
+	@Test
+	public void listingSentMailAndSmsShouldReturnMailAndSms() {
+		client.post().uri("/send/email")
+				.syncBody(MAIL_MESSAGE)
+				.exchange()
+				.expectStatus()
+				.isOk();
+		client.post().uri("/send/sms")
+				.syncBody(SMS)
+				.exchange()
+				.expectStatus()
+				.isOk();
+		client.get().uri("/list/")
+				.exchange()
+				.expectBodyList(Message.class)
+				.contains(
+						MAIL_MESSAGE,
+						SMS
+				);
 	}
 
 }
