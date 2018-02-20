@@ -44,4 +44,12 @@ public class MessagingApplicationTests {
 				.isOk();
 	}
 
+	@Test
+	public void shouldGetNokStatusForSendingUnsupportedMessage() {
+		client.post().uri("/send/unsupported")
+				.exchange()
+				.expectStatus()
+				.isBadRequest();
+	}
+
 }
