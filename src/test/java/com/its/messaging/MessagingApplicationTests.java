@@ -4,6 +4,8 @@ import com.its.messaging.dto.Mail;
 import com.its.messaging.dto.Message;
 import com.its.messaging.dto.SMS;
 import com.its.messaging.repository.MessageRepository;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -126,5 +128,21 @@ public class MessagingApplicationTests {
                         SMS
                 );
     }
+
+    @Test
+    public void sendingMessageWithoutTypeWillCauseClientError() {
+        client.post().uri("/send/sms")
+                .syncBody(this.new NotAValidMessage("Dummy message"))
+                .exchange()
+                .expectStatus()
+                .is4xxClientError();
+    }
+
+    @Data
+    @AllArgsConstructor
+    private class NotAValidMessage {
+        private String messageContents;
+    }
+
 
 }

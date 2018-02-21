@@ -6,6 +6,7 @@ import com.its.messaging.dto.SMS;
 import com.its.messaging.repository.MessageRepository;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -25,22 +26,21 @@ public class MessageHandlers {
     }
 
     public Mono<ServerResponse> handleSms(ServerRequest serverRequest) {
-        ServerResponseWrapper serverResponseWrapper = new ServerResponseWrapper();
-        serverRequest.bodyToMono(SMS.class)
-                .doOnSuccess(message ->log.info("Accepted sms message: {}", message))
-        .doOnSuccess(sms -> messageRepository.insert(sms).subscribe())
-        .doOnError(serverResponseWrapper::nok)
-                .doOnSuccess(sms -> serverResponseWrapper.ok())
-                .subscribe();
-        return serverResponseWrapper.getResponseMono();
+        return handleMessage(serverRequest.bodyToMono(SMS.class));
     }
 
     public Mono<ServerResponse> handleEmail(ServerRequest serverRequest) {
+        return handleMessage(serverRequest.bodyToMono(Mail.class));
+    }
+
+    private <T extends Message> Mono<ServerResponse> handleMessage(Mono<T> messageMono) {
         ServerResponseWrapper serverResponseWrapper = new ServerResponseWrapper();
-        serverRequest.bodyToMono(Mail.class)
-                .doOnSuccess(message ->log.info("Accepted email message: {}", message))
+        messageMono
+                .doOnSuccess(message ->log.info("Accepted {} message: {}", message))
                 .doOnSuccess(message -> messageRepository.insert(message).subscribe())
-                .doOnError(serverResponseWrapper::nok)
+                .doOnError(throwable -> throwable instanceof DecodingException, serverResponseWrapper::cannotDeserialize)
+                .doOnError(throwable -> !(throwable instanceof DecodingException), serverResponseWrapper::nok)
+                .doOnError(throwable -> log.info("An error has been thrown {}", throwable.getMessage()))
                 .doOnSuccess(sms -> serverResponseWrapper.ok())
                 .subscribe();
         return serverResponseWrapper.getResponseMono();
@@ -56,12 +56,16 @@ public class MessageHandlers {
 
         private Mono<ServerResponse> responseMono;
 
-        public void ok() {
+        void ok() {
             responseMono = ServerResponse.ok().build();
         }
 
-        public void nok(Throwable throwable) {
+        void nok(Throwable throwable) {
             responseMono = ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.TEXT_EVENT_STREAM).syncBody(throwable.getMessage());
+        }
+
+        void cannotDeserialize(Throwable throwable) {
+            responseMono = ServerResponse.status(HttpStatus.NOT_ACCEPTABLE).contentType(MediaType.TEXT_EVENT_STREAM).syncBody(throwable.getMessage());
         }
     }
 }
