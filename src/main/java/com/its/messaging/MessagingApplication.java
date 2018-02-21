@@ -1,25 +1,15 @@
 package com.its.messaging;
 
-import lombok.*;
-import lombok.extern.slf4j.Slf4j;
+import com.its.messaging.services.MessageHandlers;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
-import org.springframework.http.MediaType;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
-import reactor.core.publisher.Flux;
 
-import java.util.function.Consumer;
-
+import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
@@ -32,98 +22,20 @@ public class MessagingApplication {
 
 }
 
-@RestController
-@Slf4j
-@AllArgsConstructor
-class MessagingController {
-    private final MessageRepository messageRepository;
-
-    @GetMapping(value = "/list", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<Message> list() {
-        return messageRepository.findAll();
-    }
-}
-
 @Configuration
 class WebConfiguration {
     @Bean
-    public RouterFunction<?> routes(MailService mailService, SmsService smsService) {
+    public RouterFunction<?> routes(MessageHandlers messageHandlers) {
         return RouterFunctions
                 .nest(POST("/send"),
-                        route(POST("/email"), serverRequest -> {
-                            serverRequest.bodyToFlux(MailMessage.class)
-                                    .subscribe(mailService);
-                                return ServerResponse.ok().build();
-                                })
-                                .andRoute(POST("/sms"), serverRequest -> {
-                                    serverRequest.bodyToMono(SMS.class)
-                                            .subscribe(smsService);
-                                    return ServerResponse.ok().build();
-                                })
+                        route(POST("/email"), messageHandlers::handleEmail)
+                                .andRoute(POST("/sms"), messageHandlers::handleSms)
                                 .andRoute(POST("/*"), serverRequest ->
-                                        ServerResponse.badRequest().build()));
+                                        ServerResponse.badRequest().build()))
+                .andRoute(GET("/list"), messageHandlers::listAll);
     }
-}
 
-@Service
-@Slf4j
-@AllArgsConstructor
-class MailService implements Consumer<MailMessage> {
-
-    private final MessageRepository messageRepository;
-
-    @Override
-    public void accept(MailMessage mailMessage) {
-        log.info("Accepted email message {}", mailMessage);
-        messageRepository.insert(mailMessage).subscribe();
-    }
-}
-
-@Service
-@Slf4j
-@AllArgsConstructor
-class SmsService implements Consumer<SMS> {
-
-    private final MessageRepository messageRepository;
-
-    @Override
-    public void accept(SMS sms) {
-        log.info("Accepted sms message: {}", sms);
-        messageRepository.insert(sms).subscribe();
-    }
-}
-
-interface Message {
 
 }
 
-@ToString
-@Data
-@Document
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-class MailMessage implements Message {
-    private String sender;
-    private String recipient;
-    private String subject;
-    private String body;
 
-}
-
-@ToString
-@Data
-@Document
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
-class SMS implements Message {
-    private String sender;
-    private String recipient;
-    private String message;
-
-}
-
-@Repository
-interface MessageRepository extends ReactiveMongoRepository<Message, String> {
-}
